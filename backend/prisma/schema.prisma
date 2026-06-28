@@ -1,0 +1,235 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Employee {
+  id          String   @id @default(uuid())
+  empId       String   @unique
+  name        String
+  email       String   @unique
+  phone       String?
+  department  String
+  designation String
+  role        String   @default("Employee") // Admin, Store Keeper, Supervisor, Station Manager, Employee
+  isActive    Boolean  @default(true)
+
+  allocations Allocation[]
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Asset {
+  id              String    @id @default(uuid())
+  name            String
+  modelNumber     String?
+  type            String
+  category        String
+  serial          String?   @unique
+  description     String?
+  imageUrl        String?
+  purchaseDate    DateTime
+  cost            Float
+  warranty        String?   // Expiry date string
+  warrantyStart   String?   // Warranty start date string
+  vendorContact   String?   // Vendor support contact
+  location        String
+  department      String
+  status          String    // Available, Assigned, Under Maintenance, Condemned, Disposed
+  healthScore     Int       @default(100)
+  healthCategory  String?   // Excellent, Good, Fair, Poor, Critical
+  healthUpdatedAt DateTime?
+  disposalReason  String?
+  disposedAt      DateTime?
+  salvageValue    Float     @default(0)
+  usefulLifeYears Int       @default(5)
+  deletedAt       DateTime? // For Soft Delete
+
+  vendorId     String?
+  vendor       Vendor?  @relation(fields: [vendorId], references: [id])
+
+  maintenance   Maintenance[]
+  transfers     Transfer[]
+  allocations   Allocation[]
+  qrLogs        QRScanLog[]
+  verifications PhysicalVerification[]
+  documents     AssetDocument[]
+  disposals     Disposal[]
+
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model Allocation {
+  id          String   @id @default(uuid())
+  assetId     String
+  asset       Asset    @relation(fields: [assetId], references: [id])
+  employeeId  String
+  employee    Employee @relation(fields: [employeeId], references: [id])
+
+  assignedAt  DateTime @default(now())
+  returnedAt  DateTime?
+  status      String   @default("Active") // Pending, Active, Returned
+  notes       String?
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model QRScanLog {
+  id          Int      @id @default(autoincrement())
+  assetId     String
+  asset       Asset    @relation(fields: [assetId], references: [id])
+  scannedBy   String
+  deviceInfo  String?
+  ipAddress   String?
+  timestamp   DateTime @default(now())
+}
+
+model PhysicalVerification {
+  id           Int      @id @default(autoincrement())
+  assetId      String
+  asset        Asset    @relation(fields: [assetId], references: [id])
+  verifiedBy   String
+  condition    String   // Excellent, Good, Fair, Damaged, Missing
+  notes        String?
+  campaignId   Int?
+  campaign     VerificationCampaign? @relation(fields: [campaignId], references: [id])
+  timestamp    DateTime @default(now())
+}
+
+model VerificationCampaign {
+  id        Int      @id @default(autoincrement())
+  name      String
+  startDate DateTime
+  endDate   DateTime?
+  location  String?
+  auditor   String
+  status    String   @default("Active") // Active, Completed
+  createdAt DateTime @default(now())
+
+  entries   PhysicalVerification[]
+}
+
+model Vendor {
+  id       String   @id @default(uuid())
+  name     String
+  category String
+  contact  String?
+  rating   Float?
+  orders   Int      @default(0)
+
+  assets   Asset[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Maintenance {
+  id          String   @id @default(uuid())
+  type        String
+  description String?
+  scheduled   DateTime
+  nextDueDate DateTime?
+  technician  String?
+  status      String   // Pending, Approved, In Progress, Completed
+  cost        Float
+
+  assetId     String
+  asset       Asset    @relation(fields: [assetId], references: [id])
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Transfer {
+  id           String    @id @default(uuid())
+  assetId      String
+  asset        Asset     @relation(fields: [assetId], references: [id])
+  fromLocation String
+  toLocation   String
+  requestedBy  String
+  approvedBy   String?
+  transferDate DateTime?
+  remarks      String?
+  status       String    @default("Pending") // Pending, Approved, Rejected, Completed
+
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+}
+
+model Disposal {
+  id              Int      @id @default(autoincrement())
+  assetId         String
+  asset           Asset    @relation(fields: [assetId], references: [id])
+  reason          String
+  condition       String?  // Physical condition at time of disposal
+  inspectionNotes String?
+  approvedBy      String?
+  disposalValue   Float?
+  status          String   @default("Under Review") // Under Review, Condemned, Approved for Disposal, Disposed
+  disposalDate    DateTime?
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model AssetDocument {
+  id          Int      @id @default(autoincrement())
+  assetId     String
+  asset       Asset    @relation(fields: [assetId], references: [id])
+  fileName    String
+  fileType    String   // Invoice, PO, Warranty Certificate, Service Report, User Manual
+  filePath    String
+  fileSize    Int?
+  uploadedBy  String
+
+  createdAt   DateTime @default(now())
+}
+
+model Notification {
+  id        Int      @id @default(autoincrement())
+  type      String   // ASSIGNMENT, RETURN, TRANSFER, MAINTENANCE, WARRANTY, DISPOSAL, VERIFICATION
+  title     String
+  body      String
+  targetRole String? // Admin, Supervisor, Store Keeper, Employee, or null for all
+  isRead    Boolean  @default(false)
+
+  createdAt DateTime @default(now())
+}
+
+model Activity {
+  id        Int      @id @default(autoincrement())
+  who       String
+  action    String
+  target    String
+  time      String
+
+  createdAt DateTime @default(now())
+}
+
+model AuditLog {
+  id        Int      @id @default(autoincrement())
+  action    String
+  entity    String
+  entityId  String
+  user      String   @default("System")
+  details   String?
+
+  createdAt DateTime @default(now())
+}
+
+model EmailNotification {
+  id        Int      @id @default(autoincrement())
+  to        String
+  subject   String
+  body      String
+  status    String   @default("Sent")
+
+  createdAt DateTime @default(now())
+}
